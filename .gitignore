@@ -1,0 +1,23 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+
+# Android
+.gradle/
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# iOS
+ios/.symlinks/
+ios/Pods/
+ios/build/
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+
+# Misc
+*.DS_Store
+*.idea/
+*.ser
