@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'home_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
@@ -13,9 +14,11 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
+  int _statsRefreshTrigger = 0;
+
+  List<Widget> get _screens => [
     const HomeScreen(),
-    const StatsScreen(),
+    StatsScreen(key: ValueKey(_statsRefreshTrigger)),
     const SettingsScreen(),
   ];
 
@@ -34,19 +37,20 @@ class _MainNavigationState extends State<MainNavigation> {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey[300]!,
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
           ),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(Icons.timer_outlined, 'Pomodoro', 0),
+          _buildNavItem(Icons.home_rounded, 'Home', 0),
           _buildNavItem(Icons.bar_chart_rounded, 'Stats', 1),
           _buildNavItem(Icons.settings_outlined, 'Settings', 2),
         ],
@@ -59,6 +63,9 @@ class _MainNavigationState extends State<MainNavigation> {
     return GestureDetector(
       onTap: () {
         setState(() {
+          if (index == 1) {
+            _statsRefreshTrigger++;
+          }
           _currentIndex = index;
         });
       },
@@ -73,7 +80,7 @@ class _MainNavigationState extends State<MainNavigation> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 12,
               color: isActive ? Colors.black : Colors.grey[400],
               fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,

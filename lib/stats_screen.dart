@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'services/stats_service.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: key);
@@ -14,6 +16,14 @@ class _StatsScreenState extends State<StatsScreen>
   late AnimationController _chartAnimationController;
   late Animation<double> _cardAnimation;
   late Animation<double> _chartAnimation;
+  
+  final StatsService _statsService = StatsService();
+  bool _isLoading = true;
+  Map<String, dynamic> _totalStats = {'totalSessions': 0, 'totalHours': 0.0, 'avgSessionsPerDay': 0.0};
+  List<List<double>> _dailyStats = List.generate(5, (_) => [0.0, 0.0]);
+  List<double> _hourlyStats = List.filled(12, 0.0);
+  Map<String, dynamic> _streaks = {'current': 0, 'longest': 0};
+  String _aiInsights = 'Loading insights...';
 
   @override
   void initState() {
@@ -36,6 +46,33 @@ class _StatsScreenState extends State<StatsScreen>
     );
     _cardAnimationController.forward();
     _chartAnimationController.forward();
+    _loadData();
+  }
+
+
+
+  Future<void> _loadData() async {
+    final totalStats = await _statsService.getTotalStats();
+    final dailyStats = await _statsService.getDailyStats();
+    final hourlyStats = await _statsService.getHourlyStats();
+    final streaks = await _statsService.getStreaks();
+    
+    setState(() {
+      _totalStats = totalStats;
+      _dailyStats = dailyStats;
+      _hourlyStats = hourlyStats;
+      _streaks = streaks;
+      _isLoading = false;
+    });
+
+    // Load AI insights separately as it might take longer
+    _statsService.getAIInsights().then((insights) {
+      if (mounted) {
+        setState(() {
+          _aiInsights = insights;
+        });
+      }
+    });
   }
 
   @override
@@ -48,24 +85,24 @@ class _StatsScreenState extends State<StatsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Stack(
           children: [
             // Decorative panda elements in background
-            _buildPandaDecorations(),
+            _buildPandaDecorations(), 
             // Main content
             Column(
               children: [
                 // Title
-                const Padding(
-                  padding: EdgeInsets.all(20.0),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
                   child: Text(
                     'Stats',
-                    style: TextStyle(
+                    style: GoogleFonts.poppins(
                       fontSize: 28,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -84,14 +121,13 @@ class _StatsScreenState extends State<StatsScreen>
                         // Hourly Focus Card
                         _buildAnimatedCard(_buildHourlyFocusCard(), 2),
                         const SizedBox(height: 16),
-                        // Top 3 Distractions Card
-                        _buildAnimatedCard(_buildTopDistractionsCard(), 3),
                         const SizedBox(height: 16),
+                        // Top 3 Distractions Card REMOVED
                         // Focus Streaks Card
-                        _buildAnimatedCard(_buildStreaksCard(), 4),
+                        _buildAnimatedCard(_buildStreaksCard(), 3),
                         const SizedBox(height: 16),
                         // AI Insights Section
-                        _buildAnimatedCard(_buildAIInsightsCard(), 5),
+                        _buildAnimatedCard(_buildAIInsightsCard(), 4),
                         const SizedBox(height: 80), // Space for bottom nav
                       ],
                     ),
@@ -108,22 +144,8 @@ class _StatsScreenState extends State<StatsScreen>
   Widget _buildPandaDecorations() {
     return Stack(
       children: [
-        // Top right panda (waving - use pomo_panda.png)
-        Positioned(
-          top: 10,
-          right: 20,
-          child: Opacity(
-            opacity: 0.08,
-            child: Transform.rotate(
-              angle: 0.2,
-              child: Image.asset(
-                'assets/images/pomo_panda.png',
-                width: 60,
-                height: 60,
-              ),
-            ),
-          ),
-        ),
+        // Top right panda removed
+
         // Middle left panda (sitting with bamboo - use onboarding.png)
         Positioned(
           top: 300,
@@ -176,7 +198,7 @@ class _StatsScreenState extends State<StatsScreen>
           child: Opacity(
             opacity: 0.04,
             child: Image.asset(
-              'assets/images/homescreen.jpg',
+              'assets/images/homescreen.png',
               width: 40,
               height: 40,
             ),
@@ -251,11 +273,18 @@ class _StatsScreenState extends State<StatsScreen>
 
   Widget _buildLast5DaysCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,15 +292,15 @@ class _StatsScreenState extends State<StatsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Last 5 Days',
-                style: TextStyle(
+                style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black,
+                  color: Colors.black87,
                 ),
               ),
-              _buildTrendIndicator('up', '12%'),
+              _buildTrendIndicator('steady', ''),
             ],
           ),
           const SizedBox(height: 20),
@@ -347,13 +376,13 @@ class _StatsScreenState extends State<StatsScreen>
                                 sections: [
                                   PieChartSectionData(
                                     color: Colors.black,
-                                    value: 60 * _chartAnimation.value,
+                                    value: _totalStats['totalSessions'] > 0 ? 100 : 0,
                                     title: '',
                                     radius: 25,
                                   ),
                                   PieChartSectionData(
                                     color: Colors.grey[400],
-                                    value: 40 * _chartAnimation.value,
+                                    value: 0,
                                     title: '',
                                     radius: 25,
                                   ),
@@ -377,14 +406,10 @@ class _StatsScreenState extends State<StatsScreen>
   }
 
   List<BarChartGroupData> _buildBarGroups() {
-    // Mock data for 5 days: [work time, break time]
-    final data = [
-      [70, 25],
-      [50, 18],
-      [85, 30],
-      [65, 22],
-      [75, 28],
-    ];
+    // Real data for 5 days: [focus minutes, break minutes]
+    // Note: break minutes are currently not tracked separately in dailyStats, 
+    // assuming 0 or need to update service. Service returns [focus, break].
+    final data = _dailyStats;
     return List.generate(5, (index) {
       return BarChartGroupData(
         x: index,
@@ -416,7 +441,7 @@ class _StatsScreenState extends State<StatsScreen>
             Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: Colors.black,
                 shape: BoxShape.circle,
               ),
@@ -459,11 +484,18 @@ class _StatsScreenState extends State<StatsScreen>
 
   Widget _buildTotalHistoryCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,15 +503,15 @@ class _StatsScreenState extends State<StatsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Total History',
-                style: TextStyle(
+                style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.black,
                 ),
               ),
-              _buildTrendIndicator('up', '8%'),
+              _buildTrendIndicator('up', ''),
             ],
           ),
           const SizedBox(height: 20),
@@ -507,8 +539,8 @@ class _StatsScreenState extends State<StatsScreen>
                   ),
                 ],
               ),
-              const Text(
-                '125',
+              Text(
+                '${_totalStats['totalSessions']}',
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.w600,
@@ -525,8 +557,8 @@ class _StatsScreenState extends State<StatsScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Total Focus Time: 52h 30m',
+                  Text(
+                    'Total Focus Time: ${(_totalStats['totalHours'] as double).toStringAsFixed(1)}h',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.black,
@@ -542,8 +574,8 @@ class _StatsScreenState extends State<StatsScreen>
                   ),
                 ],
               ),
-              const Text(
-                '3.5',
+              Text(
+                '${(_totalStats['avgSessionsPerDay'] as double).toStringAsFixed(1)}',
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.w600,
@@ -559,11 +591,18 @@ class _StatsScreenState extends State<StatsScreen>
 
   Widget _buildStreaksCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,28 +610,28 @@ class _StatsScreenState extends State<StatsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Focus Streaks',
-                style: TextStyle(
+                style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.black,
                 ),
               ),
-              _buildTrendIndicator('steady', '0%'),
+              _buildTrendIndicator('steady', ''),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStreakItem('Current Streak', '7', 'days'),
+              _buildStreakItem('Current Streak', '${_streaks['current']}', 'days'),
               Container(
                 width: 1,
                 height: 50,
                 color: Colors.grey[300],
               ),
-              _buildStreakItem('Longest Streak', '14', 'days'),
+              _buildStreakItem('Longest Streak', '${_streaks['longest']}', 'days'),
             ],
           ),
         ],
@@ -616,7 +655,7 @@ class _StatsScreenState extends State<StatsScreen>
           children: [
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
                 color: Colors.black,
@@ -641,11 +680,18 @@ class _StatsScreenState extends State<StatsScreen>
 
   Widget _buildHourlyFocusCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -653,20 +699,24 @@ class _StatsScreenState extends State<StatsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Focus Performance by Hour',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
+              Expanded(
+                child: Text(
+                  'Focus Performance by Hour',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _buildTrendIndicator('up', '2%'),
+              const SizedBox(width: 8),
+              _buildTrendIndicator('steady', ''),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Distraction attempts throughout the day',
+            'Focus minutes throughout the day',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey[600],
@@ -681,7 +731,7 @@ class _StatsScreenState extends State<StatsScreen>
                 return BarChart(
                   BarChartData(
                     alignment: BarChartAlignment.spaceAround,
-                    maxY: 50,
+                    maxY: 60,
                     barTouchData: BarTouchData(enabled: false),
                     titlesData: FlTitlesData(
                       show: true,
@@ -764,7 +814,7 @@ class _StatsScreenState extends State<StatsScreen>
               ),
               const SizedBox(width: 6),
               Text(
-                'Lower is better (fewer distractions)',
+                'Higher is better',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -779,19 +829,19 @@ class _StatsScreenState extends State<StatsScreen>
   }
 
   List<BarChartGroupData> _buildHourlyBarGroups() {
-    // Mock data: distraction attempts per hour (9 AM - 8 PM)
-    // Lower values = better focus
-    final hourlyData = [15, 12, 8, 18, 32, 45, 38, 25, 20, 15, 10, 8];
+    // Real hourly data (9 AM - 8 PM)
+    // Higher values = better focus
+    final hourlyData = _hourlyStats;
     return List.generate(12, (index) {
       final value = hourlyData[index];
-      // Color intensity based on distraction level
+      // Color intensity based on focus duration
       Color barColor;
-      if (value < 15) {
+      if (value > 45) {
         barColor = Colors.black; // Great focus
-      } else if (value < 30) {
+      } else if (value > 20) {
         barColor = Colors.grey[700]!; // Good focus
       } else {
-        barColor = Colors.grey[500]!; // Needs improvement
+        barColor = Colors.grey[500]!; // Low focus
       }
       return BarChartGroupData(
         x: index,
@@ -810,140 +860,7 @@ class _StatsScreenState extends State<StatsScreen>
     });
   }
 
-  Widget _buildTopDistractionsCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.phone_android, color: Colors.black, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'Top 3 Distractions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-              _buildTrendIndicator('down', '5%'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Apps you tried to access most',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildDistractionBar('TikTok', 45, Icons.music_note),
-          const SizedBox(height: 16),
-          _buildDistractionBar('Instagram', 32, Icons.camera_alt),
-          const SizedBox(height: 16),
-          _buildDistractionBar('Snapchat', 28, Icons.chat_bubble),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildDistractionBar(String appName, int attempts, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 18, color: Colors.black),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    appName,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AnimatedBuilder(
-                          animation: _chartAnimation,
-                          builder: (context, child) {
-                            return Stack(
-                              children: [
-                                Container(
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                                FractionallySizedBox(
-                                  widthFactor:
-                                      (attempts / 50) * _chartAnimation.value,
-                                  child: Container(
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.black,
-                                          Colors.grey[700]!
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '$attempts',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildAIInsightsCard() {
     return Container(
@@ -980,7 +897,7 @@ class _StatsScreenState extends State<StatsScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            'Your focus tends to be strongest in the morning hours, with peak productivity between 9 AM and 11 AM. You\'ve maintained a consistent 7-day streak, which is excellent! However, your focus sessions drop significantly around 2 PM - consider scheduling a longer break or a walk during this time. Your short break usage has increased by 15% this week, suggesting you might benefit from slightly longer focus sessions to build momentum.',
+            _aiInsights,
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[800],

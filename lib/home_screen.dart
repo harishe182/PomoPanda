@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:google_fonts/google_fonts.dart';
+import 'services/stats_service.dart';
+
 
 enum TimerType { focus, shortBreak, longBreak }
 
@@ -19,10 +22,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _remainingSeconds = 25 * 60; // Start with 25 minutes
   bool _isRunning = false;
   bool _isPaused = false;
+  bool _focusStarted = false;
   Timer? _timer;
   
-  late AnimationController _pandaAnimationController;
-  late Animation<double> _pandaAnimation;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
   
   int _completedPomodoros = 0;
   int _currentSession = 0; // Track current session in a cycle
@@ -30,25 +34,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = _focusMinutes * 60;
+    _loadStats();
+    _remainingSeconds = _getTimerDuration();
     
-    _pandaAnimationController = AnimationController(
-      duration: const Duration(seconds: 2),
+    _animationController = AnimationController(
       vsync: this,
+      duration: const Duration(seconds: 2), // Slower breathing
     )..repeat(reverse: true);
     
-    _pandaAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(
-      CurvedAnimation(
-        parent: _pandaAnimationController,
-        curve: Curves.easeInOut,
-      ),
+    _animation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _pandaAnimationController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -57,9 +59,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isPaused = false;
     } else {
       _isRunning = true;
+      if (_currentTimerType == TimerType.focus) {
+        _focusStarted = true;
+      }
     }
-    
-    _pandaAnimationController.repeat(reverse: true);
     
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -79,17 +82,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isPaused = true;
     });
     _timer?.cancel();
-    _pandaAnimationController.stop();
   }
 
   void _resetTimer() {
     setState(() {
       _isRunning = false;
       _isPaused = false;
+      _focusStarted = false;
       _remainingSeconds = _getTimerDuration();
     });
     _timer?.cancel();
-    _pandaAnimationController.reset();
   }
 
   void _timerComplete() {
@@ -98,7 +100,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isRunning = false;
       _isPaused = false;
     });
-    _pandaAnimationController.stop();
     
     // Show completion dialog
     _showCompletionDialog();
@@ -109,8 +110,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _moveToNextTimer() {
     setState(() {
+      _focusStarted = false;
       if (_currentTimerType == TimerType.focus) {
         _completedPomodoros++;
+        _saveStats(TimerType.focus);
         _currentSession++;
         
         // After 4 focus sessions, take a long break
@@ -126,6 +129,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       
       _remainingSeconds = _getTimerDuration();
     });
+  }
+
+  Future<void> _loadStats() async {
+    final statsService = StatsService();
+    final stats = await statsService.getTotalStats();
+    setState(() {
+      _completedPomodoros = stats['totalSessions'] as int;
+    });
+  }
+
+  Future<void> _saveStats(TimerType type, {int? durationOverride}) async {
+    final statsService = StatsService();
+    int duration = 0;
+    String typeStr = 'focus';
+    
+    switch (type) {
+      case TimerType.focus:
+        duration = durationOverride ?? (_focusMinutes * 60);
+        typeStr = 'focus';
+        break;
+      case TimerType.shortBreak:
+        duration = durationOverride ?? (_shortBreakMinutes * 60);
+        typeStr = 'shortBreak';
+        break;
+      case TimerType.longBreak:
+        duration = durationOverride ?? (_longBreakMinutes * 60);
+        typeStr = 'longBreak';
+        break;
+    }
+    
+    await statsService.logSession(duration, typeStr);
+    
+    // Reload stats to ensure UI is in sync with backend
+    await _loadStats();
   }
 
   int _getTimerDuration() {
@@ -150,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             Image.asset(
               _currentTimerType == TimerType.focus
-                  ? 'assets/images/pomo_panda.png'
+                  ? 'assets/images/homescreen.jpg'
                   : _currentTimerType == TimerType.shortBreak
                       ? 'assets/images/shortbreak.png'
                       : 'assets/images/longbreak.png',
@@ -205,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _getTimerImage() {
     switch (_currentTimerType) {
       case TimerType.focus:
-        return 'assets/images/pomo_panda.png';
+        return 'assets/images/homescreen.jpg';
       case TimerType.shortBreak:
         return 'assets/images/shortbreak.png';
       case TimerType.longBreak:
@@ -214,14 +251,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Color _getTimerColor() {
-    switch (_currentTimerType) {
-      case TimerType.focus:
-        return Colors.black;
-      case TimerType.shortBreak:
-        return Colors.grey[800]!;
-      case TimerType.longBreak:
-        return Colors.grey[600]!;
-    }
+    return Colors.black;
   }
 
   double _getProgress() {
@@ -232,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
               child: ConstrainedBox(
@@ -245,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     // Header
                     Padding(
-                      padding: const EdgeInsets.all(20.0),
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -254,17 +284,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             children: [
                               Text(
                                 'PomoPanda',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w600,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900,
                                   color: Colors.black,
+                                  letterSpacing: -1,
                                 ),
                               ),
                               Text(
                                 '${_completedPomodoros} pomodoros completed',
-                                style: TextStyle(
+                                style: GoogleFonts.inter(
                                   fontSize: 14,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -276,18 +308,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: _getTimerColor().withOpacity(0.1),
+                              color: Colors.black,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: _getTimerColor().withOpacity(0.3),
-                              ),
                             ),
                             child: Text(
                               _getTimerTypeLabel(),
-                              style: TextStyle(
+                              style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: _getTimerColor(),
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -296,49 +325,59 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     // Timer display
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 20.0),
+                      padding: const EdgeInsets.symmetric(vertical: 10.0),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           // Panda image with animation
-                          AnimatedBuilder(
-                            animation: _pandaAnimation,
-                            builder: (context, child) {
-                              return Transform.translate(
-                                offset: Offset(0, _isRunning ? _pandaAnimation.value : 0),
-                                child: Container(
-                                  width: 180,
-                                  height: 180,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _getTimerColor().withOpacity(0.2),
-                                        blurRadius: 30,
-                                        spreadRadius: 10,
+                          Container(
+                            width: 220,
+                            height: 220,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 20,
+                                  spreadRadius: 5,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: ScaleTransition(
+                              scale: _isRunning
+                                  ? Tween<double>(begin: 1.0, end: 1.05).animate(
+                                      CurvedAnimation(
+                                        parent: _animationController,
+                                        curve: Curves.easeInOut,
                                       ),
-                                    ],
+                                    )
+                                  : const AlwaysStoppedAnimation(1.0),
+                              child: ClipOval(
+                                child: Padding(
+                                  padding: EdgeInsets.all(
+                                    _currentTimerType == TimerType.focus ? 0.0 : 30.0,
                                   ),
                                   child: Image.asset(
                                     _getTimerImage(),
                                     fit: BoxFit.contain,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 30),
+                              ),
+                            ),
+                          ),const SizedBox(height: 20),
                           // Circular progress indicator
                           SizedBox(
-                            width: 260,
-                            height: 260,
+                            width: 230,
+                            height: 230,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 // Background circle
                                 Container(
-                                  width: 260,
-                                  height: 260,
+                                  width: 230,
+                                  height: 230,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: Colors.grey[200],
@@ -350,11 +389,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   height: 260,
                                   child: CircularProgressIndicator(
                                     value: _getProgress(),
-                                    strokeWidth: 8,
-                                    backgroundColor: Colors.grey[300],
+                                    strokeWidth: 24,
+                                    backgroundColor: Colors.grey[200],
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                      _getTimerColor(),
+                                      Colors.black,
                                     ),
+                                    strokeCap: StrokeCap.butt, // Minimal look
                                   ),
                                 ),
                                 // Time display
@@ -363,20 +403,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   children: [
                                     Text(
                                       _formatTime(_remainingSeconds),
-                                      style: TextStyle(
-                                        fontSize: 56,
-                                        fontWeight: FontWeight.w300,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 70,
+                                        fontWeight: FontWeight.w200,
                                         color: Colors.black,
-                                        letterSpacing: -2,
+                                        letterSpacing: -4,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       _getTimerTypeLabel(),
-                                      style: TextStyle(
+                                      style: GoogleFonts.poppins(
                                         fontSize: 16,
                                         color: Colors.grey[600],
                                         fontWeight: FontWeight.w500,
+                                        letterSpacing: 1,
                                       ),
                                     ),
                                   ],
@@ -384,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 20),
                           // Control buttons
                           Stack(
                             alignment: Alignment.center,
@@ -402,25 +443,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ),
                                 ),
                               // Play/Pause button (centered)
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _getTimerColor(),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _getTimerColor().withOpacity(0.4),
-                                      blurRadius: 20,
-                                      spreadRadius: 5,
-                                    ),
-                                  ],
-                                ),
-                                child: IconButton(
-                                  onPressed: _isRunning ? _pauseTimer : _startTimer,
-                                  icon: Icon(
-                                    _isRunning ? Icons.pause : Icons.play_arrow,
-                                    color: Colors.white,
+                              GestureDetector(
+                                onTap: () {
+                                  if (_isRunning) {
+                                    _pauseTimer();
+                                  } else {
+                                    _startTimer();
+                                  }
+                                },
+                                child: Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white, // Always white
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.white.withOpacity(0.2),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                    color: Colors.black, // Icon black
                                     size: 40,
                                   ),
                                 ),
@@ -432,24 +479,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     // Timer type selector
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 20.0),
+                      padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 20.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildTimerTypeButton(
                             TimerType.focus,
                             'Focus',
-                            'assets/images/pomo_panda.png',
+                            Icons.timer,
                           ),
                           _buildTimerTypeButton(
                             TimerType.shortBreak,
                             'Short',
-                            'assets/images/shortbreak.png',
+                            Icons.coffee,
                           ),
                           _buildTimerTypeButton(
                             TimerType.longBreak,
                             'Long',
-                            'assets/images/longbreak.png',
+                            Icons.weekend,
                           ),
                         ],
                       ),
@@ -466,63 +513,78 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildTimerTypeButton(
     TimerType type,
     String label,
-    String imagePath,
+    IconData icon,
   ) {
     final isSelected = _currentTimerType == type;
-    final color = type == TimerType.focus
-        ? Colors.black
-        : type == TimerType.shortBreak
-            ? Colors.grey[800]!
-            : Colors.grey[600]!;
 
     return GestureDetector(
       onTap: () {
         if (!_isRunning) {
           setState(() {
+            // Check for manual completion (Focus -> Break)
+            if (_currentTimerType == TimerType.focus &&
+                (type == TimerType.shortBreak || type == TimerType.longBreak)) {
+              if (_focusStarted) {
+                _completedPomodoros++;
+                // Calculate elapsed time: Total Duration - Remaining Seconds
+                final totalDuration = _focusMinutes * 60;
+                final elapsedTime = totalDuration - _remainingSeconds;
+                
+                _saveStats(TimerType.focus, durationOverride: elapsedTime); // Log the focus session with actual time
+                _saveStats(type); // Log the break session immediately
+                _focusStarted = false;
+              }
+            } else if (_currentTimerType != TimerType.focus && type == TimerType.focus) {
+               // Reset focusStarted when switching TO focus (just in case)
+               _focusStarted = false;
+            }
+
             _currentTimerType = type;
             _remainingSeconds = _getTimerDuration();
           });
         }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? color : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              imagePath,
-              width: 24,
-              height: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.black,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: isSelected ? 70 : 60,
+            height: isSelected ? 70 : 60,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.black : Colors.grey.shade300,
+                width: isSelected ? 3 : 1,
               ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [],
             ),
-          ],
-        ),
+            child: Icon(
+              icon,
+              size: 28,
+              color: isSelected ? Colors.black : Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              color: isSelected ? Colors.black : Colors.grey[600],
+            ),
+          ),
+        ],
       ),
     );
   }
