@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Pomo Panda</string>
+    <string name="accessibility_service_description">Pomo Panda Accessibility Service</string>
+</resources>
