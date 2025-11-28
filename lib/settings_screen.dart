@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,21 +12,17 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoStartFocus = true;
   bool _vibrateOnEnd = true;
-  bool _isDarkMode = false;
+  // bool _isDarkMode = false; // Removed
   double _volume = 0.7;
   String _notificationSound = 'Soft Chime';
   List<String> _blockedApps = ['Instagram', 'TikTok'];
 
-  Color get _background => _isDarkMode ? Colors.black : Colors.white;
-  Color get _cardColor =>
-      _isDarkMode ? const Color(0xFF111111) : const Color(0xFFF5F5F5);
-  Color get _primaryText => _isDarkMode ? Colors.white : Colors.black;
-  Color get _secondaryText =>
-      _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700;
-  Color get _subtleBorder =>
-      _isDarkMode ? Colors.white10 : Colors.black12;
-  Color get _accent =>
-      _isDarkMode ? Colors.white : Colors.black;
+  Color get _background => Colors.white;
+  Color get _cardColor => Colors.grey[50]!;
+  Color get _primaryText => Colors.black87;
+  Color get _secondaryText => Colors.grey.shade600;
+  Color get _subtleBorder => Colors.grey[200]!;
+  Color get _accent => Colors.black;
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +33,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
         centerTitle: true,
         iconTheme: IconThemeData(color: _primaryText),
-        title: Image.asset(
-          'assets/images/pomo_panda.png',
-          height: 34,
-          width: 34,
-          fit: BoxFit.contain,
+        title: Text(
+          'Settings',
+          style: GoogleFonts.poppins(
+            color: _primaryText,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       body: SafeArea(
@@ -52,8 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 16),
             _buildSoundCard(context),
             const SizedBox(height: 16),
-            _buildThemeCard(),
-            const SizedBox(height: 16),
+            // const SizedBox(height: 16),
             _buildAppSelectionCard(context),
             const SizedBox(height: 24),
           ],
@@ -69,27 +67,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _cardColor,
+            color: Colors.white,
             shape: BoxShape.circle,
             border: Border.all(color: _subtleBorder),
           ),
           child: ClipOval(
-            child: Image.asset(
-              'assets/images/pomo_panda.png',
-              width: 40,
-              height: 40,
-              fit: BoxFit.contain,
-            ),
+          child: Icon(
+            Icons.person,
+            size: 32,
+            color: Colors.black,
+          ),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             'Tune your focus, sound, and blocking preferences.',
-            style: TextStyle(
+            style: GoogleFonts.inter(
               color: _secondaryText,
-              fontSize: 13,
-              height: 1.4,
+              fontSize: 14,
+              height: 1.5,
             ),
           ),
         ),
@@ -179,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(
                   builder: (_) => NotificationSoundScreen(
                     selectedSound: _notificationSound,
-                    isDarkMode: _isDarkMode,
+                    // isDarkMode: _isDarkMode, // Removed
                   ),
                 ),
               );
@@ -198,15 +195,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: _secondaryText,
               ),
               Expanded(
-                child: Slider(
-                  value: _volume,
-                  min: 0,
-                  max: 1,
-                  activeColor: _accent,
-                  inactiveColor: _secondaryText.withOpacity(0.2),
-                  onChanged: (value) {
-                    setState(() => _volume = value);
-                  },
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: _accent,
+                    inactiveTrackColor: Colors.grey[300],
+                    thumbColor: _accent,
+                    overlayColor: _accent.withOpacity(0.1),
+                    trackHeight: 4.0,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.0),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
+                  ),
+                  child: Slider(
+                    value: _volume,
+                    min: 0,
+                    max: 1,
+                    onChanged: (value) {
+                      setState(() => _volume = value);
+                    },
+                  ),
                 ),
               ),
               Icon(
@@ -220,63 +226,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildThemeCard() {
-    return _SettingsCard(
-      color: _cardColor,
-      borderColor: _subtleBorder,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _cardTitle('Appearance'),
-                const SizedBox(height: 6),
-                _cardSubtitle('Toggle between light and dark panda modes.'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: _subtleBorder),
-              color: _isDarkMode ? Colors.black : Colors.white,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.dark_mode_rounded,
-                  size: 18,
-                  color: _isDarkMode ? Colors.white : _secondaryText,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _isDarkMode ? 'Dark' : 'Light',
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white : _secondaryText,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Switch.adaptive(
-                  value: _isDarkMode,
-                  activeColor: _accent,
-                  onChanged: (value) {
-                    setState(() => _isDarkMode = value);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildAppSelectionCard(BuildContext context) {
+
     final blockedCount = _blockedApps.length;
     final blockedSubtitle = blockedCount == 0
         ? 'No apps blocked yet.'
@@ -314,7 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(
                   builder: (_) => AppSelectionScreen(
                     initiallyBlocked: _blockedApps,
-                    isDarkMode: _isDarkMode,
+                    // isDarkMode: isDarkMode, // Removed
                   ),
                 ),
               );
@@ -333,7 +286,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _cardTitle(String text) {
     return Text(
       text,
-      style: TextStyle(
+      style: GoogleFonts.poppins(
         color: _primaryText,
         fontSize: 16,
         fontWeight: FontWeight.w600,
@@ -344,9 +297,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _cardSubtitle(String text) {
     return Text(
       text,
-      style: TextStyle(
+      style: GoogleFonts.inter(
         color: _secondaryText,
-        fontSize: 12,
+        fontSize: 13,
         height: 1.4,
       ),
     );
@@ -369,9 +322,16 @@ class _SettingsCard extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: borderColor),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor ?? Colors.transparent),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: child,
     );
@@ -381,11 +341,10 @@ class _SettingsCard extends StatelessWidget {
 // Notification Sound Selection Screen
 class NotificationSoundScreen extends StatefulWidget {
   final String selectedSound;
-  final bool isDarkMode;
   const NotificationSoundScreen({
     super.key,
     required this.selectedSound,
-    required this.isDarkMode,
+    // required this.isDarkMode,
   });
 
   @override
@@ -413,15 +372,12 @@ class _NotificationSoundScreenState extends State<NotificationSoundScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = widget.isDarkMode;
-    final background = isDarkMode ? Colors.black : Colors.white;
-    final primaryText = isDarkMode ? Colors.white : Colors.black;
-    final secondaryText =
-        isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700;
-    final cardColor =
-        isDarkMode ? const Color(0xFF111111) : const Color(0xFFF5F5F5);
-    final borderColor =
-        isDarkMode ? Colors.white10 : Colors.black12;
+    // final isDarkMode = widget.isDarkMode;
+    final background = Colors.white;
+    final primaryText = Colors.black;
+    final secondaryText = Colors.grey.shade700;
+    final cardColor = const Color(0xFFF5F5F5);
+    final borderColor = Colors.black12;
 
     return Scaffold(
       backgroundColor: background,
@@ -520,11 +476,11 @@ class _NotificationSoundScreenState extends State<NotificationSoundScreen> {
 // App Selection Screen (blocking apps UI)
 class AppSelectionScreen extends StatefulWidget {
   final List<String> initiallyBlocked;
-  final bool isDarkMode;
+  // final bool isDarkMode;
   const AppSelectionScreen({
     super.key,
     required this.initiallyBlocked,
-    required this.isDarkMode,
+    // required this.isDarkMode,
   });
 
   @override
@@ -553,15 +509,12 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = widget.isDarkMode;
-    final background = isDarkMode ? Colors.black : Colors.white;
-    final primaryText = isDarkMode ? Colors.white : Colors.black;
-    final secondaryText =
-        isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700;
-    final cardColor =
-        isDarkMode ? const Color(0xFF111111) : const Color(0xFFF5F5F5);
-    final borderColor =
-        isDarkMode ? Colors.white10 : Colors.black12;
+    // final isDarkMode = widget.isDarkMode;
+    final background = Colors.white;
+    final primaryText = Colors.black;
+    final secondaryText = Colors.grey.shade700;
+    final cardColor = const Color(0xFFF5F5F5);
+    final borderColor = Colors.black12;
 
     return Scaffold(
       backgroundColor: background,
@@ -667,4 +620,3 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     );
   }
 }
-
