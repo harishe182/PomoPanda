@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class Session {
   final DateTime startTime;
@@ -33,25 +33,26 @@ class StatsService {
   Future<void> logSession(int durationSeconds, String type) async {
     final prefs = await SharedPreferences.getInstance();
     final sessions = await getSessions();
-    
+
     final newSession = Session(
       startTime: DateTime.now(),
       durationSeconds: durationSeconds,
       type: type,
     );
-    
+
     sessions.add(newSession);
-    
-    final String jsonString = jsonEncode(sessions.map((e) => e.toJson()).toList());
+
+    final String jsonString =
+        jsonEncode(sessions.map((e) => e.toJson()).toList());
     await prefs.setString(_storageKey, jsonString);
   }
 
   Future<List<Session>> getSessions() async {
     final prefs = await SharedPreferences.getInstance();
     final String? jsonString = prefs.getString(_storageKey);
-    
+
     if (jsonString == null) return [];
-    
+
     final List<dynamic> jsonList = jsonDecode(jsonString);
     return jsonList.map((e) => Session.fromJson(e)).toList();
   }
@@ -59,14 +60,14 @@ class StatsService {
   Future<Map<String, dynamic>> getTotalStats() async {
     final sessions = await getSessions();
     final focusSessions = sessions.where((s) => s.type == 'focus').toList();
-    
+
     int totalSeconds = 0;
     for (var session in focusSessions) {
       totalSeconds += session.durationSeconds;
     }
-    
+
     final double totalHours = totalSeconds / 3600;
-    
+
     // Calculate average sessions per day
     if (focusSessions.isEmpty) {
       return {
@@ -79,7 +80,7 @@ class StatsService {
     final firstSession = focusSessions.first.startTime;
     final lastSession = focusSessions.last.startTime;
     final daysDiff = lastSession.difference(firstSession).inDays + 1;
-    
+
     return {
       'totalSessions': focusSessions.length,
       'totalHours': totalHours,
@@ -90,7 +91,8 @@ class StatsService {
   Future<List<List<double>>> getDailyStats() async {
     final sessions = await getSessions();
     final now = DateTime.now();
-    final List<List<double>> data = []; // [focusMinutes, breakMinutes] for last 5 days
+    final List<List<double>> data =
+        []; // [focusMinutes, breakMinutes] for last 5 days
 
     for (int i = 4; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
@@ -133,7 +135,7 @@ class StatsService {
   Future<Map<String, dynamic>> getStreaks() async {
     final sessions = await getSessions();
     final focusSessions = sessions.where((s) => s.type == 'focus').toList();
-    
+
     if (focusSessions.isEmpty) {
       return {'current': 0, 'longest': 0};
     }
@@ -144,24 +146,26 @@ class StatsService {
     int currentStreak = 0;
     int longestStreak = 0;
     int tempStreak = 0;
-    
+
     // Get unique days
     final Set<String> uniqueDays = {};
     for (var session in focusSessions) {
-      uniqueDays.add('${session.startTime.year}-${session.startTime.month}-${session.startTime.day}');
+      uniqueDays.add(
+          '${session.startTime.year}-${session.startTime.month}-${session.startTime.day}');
     }
-    
+
     final sortedDays = uniqueDays.toList()..sort();
-    
+
     if (sortedDays.isEmpty) return {'current': 0, 'longest': 0};
 
     // Calculate streaks
     DateTime? lastDate;
-    
+
     for (var dayStr in sortedDays) {
       final parts = dayStr.split('-');
-      final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
-      
+      final date = DateTime(
+          int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+
       if (lastDate == null) {
         tempStreak = 1;
       } else {
@@ -175,17 +179,19 @@ class StatsService {
       }
       lastDate = date;
     }
-    
+
     if (tempStreak > longestStreak) longestStreak = tempStreak;
-    
+
     // Check if current streak is active (today or yesterday)
-    final lastSessionDate = DateTime.parse(sortedDays.last); // Reconstruct roughly
+    final lastSessionDate =
+        DateTime.parse(sortedDays.last); // Reconstruct roughly
     // Actually better to check if last recorded day is today or yesterday
     final now = DateTime.now();
     final todayStr = '${now.year}-${now.month}-${now.day}';
     final yesterday = now.subtract(const Duration(days: 1));
-    final yesterdayStr = '${yesterday.year}-${yesterday.month}-${yesterday.day}';
-    
+    final yesterdayStr =
+        '${yesterday.year}-${yesterday.month}-${yesterday.day}';
+
     if (sortedDays.last == todayStr || sortedDays.last == yesterdayStr) {
       currentStreak = tempStreak;
     } else {
@@ -201,7 +207,7 @@ class StatsService {
     final hourly = await getHourlyStats();
     final daily = await getDailyStats();
     final sessions = await getSessions();
-    
+
     // Find peak hour
     int peakHourIndex = 0;
     double maxFocus = 0;
@@ -212,11 +218,12 @@ class StatsService {
       }
     }
     final peakHour = peakHourIndex + 9;
-    
+
     // Calculate break statistics
     final breakSessions = sessions.where((s) => s.type != 'focus').toList();
-    final totalBreakMinutes = breakSessions.fold<double>(0.0, (sum, s) => sum + (s.durationSeconds / 60));
-    
+    final totalBreakMinutes = breakSessions.fold<double>(
+        0.0, (sum, s) => sum + (s.durationSeconds / 60));
+
     // Find most productive day
     int bestDayIndex = 0;
     double maxDayFocus = 0;
@@ -227,13 +234,22 @@ class StatsService {
       }
     }
     final daysAgo = 4 - bestDayIndex;
-    
+
     final prompt = '''
-    Analyze these Pomodoro productivity stats and provide a unique, personalized insight (max 3 sentences).
-    IMPORTANT: Vary your response style each time - be motivational, analytical, insightful, or encouraging.
-    Request ID: ${DateTime.now().millisecondsSinceEpoch}
+    You're a supportive accountability partner reviewing someone's focus sessions - like a workout buddy checking their gym stats.
     
-    User Statistics:
+    Look at these numbers and give them a quick, honest take (2-3 sentences max).
+    
+    Your style:
+    - Talk like a real friend or trainer would - casual but insightful
+    - Call out what you see in the data without sugarcoating
+    - Mix encouragement with real talk when needed
+    - Use "you" and "your" - make it personal
+    - Keep it conversational, not formal or robotic
+    - NO markdown formatting (no asterisks, bold, or italics)
+    - Write in plain text only
+    
+    Their Stats:
     - Total Focus Sessions: ${stats['totalSessions']}
     - Total Focus Time: ${stats['totalHours'].toStringAsFixed(1)} hours
     - Average Sessions per Day: ${stats['avgSessionsPerDay'].toStringAsFixed(1)}
@@ -243,72 +259,19 @@ class StatsService {
     - Most Productive Day: ${daysAgo == 0 ? 'Today' : daysAgo == 1 ? 'Yesterday' : '$daysAgo days ago'} (${maxDayFocus.toStringAsFixed(0)} minutes)
     - Total Break Time: ${totalBreakMinutes.toStringAsFixed(0)} minutes
     
-    Provide actionable, data-driven insights based on these real numbers.
+    Give them one straight-up observation about their focus pattern - what's working, what's not, or what they should try next.
     ''';
 
     try {
-      final response = await http.post(
-        Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=$_apiKey',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-client': 'gl-dart/3.2.0',
-        },
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [{'text': prompt}]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.7,
-            'topP': 0.9,
-            'topK': 40,
-          }
-        }),
-      ).timeout(const Duration(seconds: 20));
+      final model = GenerativeModel(
+        model: 'gemini-flash-latest',
+        apiKey: _apiKey,
+      );
 
-      if (response.statusCode != 200) {
-        print('AI API Error: ${response.statusCode} - ${response.body}');
-        return 'Keep pushing! Your focus is improving every day.';
-      }
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
 
-      final data = jsonDecode(response.body);
-
-      // Handle safety blocks
-      if (data['promptFeedback'] != null &&
-          data['promptFeedback']['blockReason'] != null) {
-        print('Prompt blocked: ${data['promptFeedback']}');
-        return 'Your productivity looks strong — keep going!';
-      }
-
-      // Now extract the text safely
-      final candidates = data['candidates'];
-      if (candidates == null || candidates.isEmpty) {
-        print('No candidates returned: $data');
-        return 'Stay focused — great things are coming!';
-      }
-
-      // Content may be a map OR a list
-      final content = candidates[0]['content'];
-
-      List parts;
-      if (content is Map) {
-        parts = content['parts'];
-      } else if (content is List) {
-        parts = content.first['parts'];
-      } else {
-        print('Unexpected content format: $content');
-        return 'You\'re building great habits — keep it up!';
-      }
-
-      if (parts == null || parts.isEmpty) {
-        print('No parts found: $data');
-        return 'Your consistency is paying off — stay with it!';
-      }
-
-      return parts[0]['text'] ?? 'Great progress — keep going!';
+      return response.text ?? 'Great progress — keep going!';
     } catch (e) {
       print('AI Insights Error: $e');
       return 'Great job staying focused! Consistency is key.';
