@@ -28,7 +28,7 @@ class Session {
 
 class StatsService {
   static const String _storageKey = 'pomopanda_sessions';
-  static const String _apiKey = 'AIzaSyBmqUzWANS_aQjihYw9t2W_5hlJ_lj1Y-k';
+  static const String _apiKey = '';
 
   Future<void> logSession(int durationSeconds, String type) async {
     final prefs = await SharedPreferences.getInstance();
